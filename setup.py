@@ -1,0 +1,16 @@
+from setuptools import setup
+
+setup(
+    name='scratchml',
+    author='alonserz',
+    maintainer='alonserz',
+    packages = ['scratchml'],
+    install_requires= [
+        "joblib==1.5.2",
+        "numpy==2.3.2",
+        "scikit-learn==1.7.1",
+        "scipy==1.16.1",
+        "threadpoolctl==3.6.0",
+        "matplotlib",
+    ],
+)
