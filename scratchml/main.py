@@ -3,14 +3,13 @@ import math
 import copy
 
 from sklearn.datasets import load_iris, load_digits, load_breast_cancer
-from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
-from optimizer import Adam, RMSProp, SGD
-from utils import Sequence, to_categorical
-from layers import Linear, ReLU, Softmax
-from loss import CrossEntropy
-from utils import STDScaler
+from scratchml.optimizer import Adam, RMSProp, SGD
+from scratchml.utils import Sequence, to_categorical
+from scratchml.layers import Linear, ReLU, Softmax
+from scratchml.loss import CrossEntropy
+from scratchml.utils import STDScaler
     
 
 dataset = load_digits()
@@ -19,8 +18,6 @@ y = dataset.target
 _y = to_categorical(y.astype("int"))
 
 X_train, X_test, y_train, y_test = train_test_split(X, _y, test_size=0.4)
-
-scaler1 = StandardScaler()
 
 scaler = STDScaler()
 X_train = scaler.fit_transform(X_train)
@@ -38,7 +35,7 @@ model = Sequence(
 optim = Adam(model, lr = 1e-3)
 loss = CrossEntropy()
 
-for epoch in range(100):
+for epoch in range(200):
     y_pred = model(X_train)
     _loss = loss(y_train, y_pred)
     print(np.mean(_loss))

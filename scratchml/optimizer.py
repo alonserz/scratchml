@@ -3,6 +3,7 @@ import numpy as np
 class RMSProp():
     def __init__(
         self,
+        model,
         lr = 1e-3,
         alpha = 0.99,
         eps = 1e-08,
@@ -14,6 +15,11 @@ class RMSProp():
         self.eps = eps
         self.vt = None
         self.weight_decay = weight_decay
+
+        for layer in model:
+            if 'optim_init' not in dir(layer):
+                continue
+            layer.optim_init(self)
 
     def update(self, weights, grad):
         # If not initialized
@@ -94,8 +100,8 @@ class Adam():
 
         self.m = self.betas[0] * self.m + (1 - self.betas[0]) * grad
         self.v = self.betas[1] * self.v + (1 - self.betas[1]) * np.power(grad, 2)
-        m_hat = self.m / (1 - self.betas[0])
 
+        m_hat = self.m / (1 - self.betas[0])
         v_hat = self.v / (1 - self.betas[1])
 
         return weights - self.lr * m_hat / (np.sqrt(v_hat) + self.eps)
