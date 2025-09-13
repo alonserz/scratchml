@@ -1,15 +1,11 @@
-import math
-import copy
 import numpy as np
 import matplotlib.pyplot as plt
 import tkinter as tk
 from tkinter import ttk
-from bottle import route, template, run, response
 
 from sklearn.datasets import load_iris, load_digits, load_breast_cancer
 from sklearn.model_selection import train_test_split
 from sklearn.decomposition import PCA
-from sklearn.metrics import accuracy_score
 from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
                                                NavigationToolbar2Tk)
 
@@ -36,7 +32,7 @@ def plot_decision_boundary(model, reduce_dim_model, df_pca, y_train, tk_root, gr
     # then we're inverting set of {(x0, y0), (x1, y1), ..., (xn, yn)} to get original (N) dimension that model trained on
     # and then just forward-pass that inverted points to model and plot result
 
-    fig, ax = plt.subplots()
+    _, ax = plt.subplots()
 
     x_min, x_max = df_pca[:, 0].min() - 0.2, df_pca[:, 0].max() + 0.2
     y_min, y_max = df_pca[:, 1].min() - 0.2, df_pca[:, 1].max() + 0.2
@@ -44,7 +40,6 @@ def plot_decision_boundary(model, reduce_dim_model, df_pca, y_train, tk_root, gr
     xx, yy = np.meshgrid(np.linspace(x_min, x_max, grid_points_amount),
                             np.linspace(y_min, y_max, grid_points_amount))
 
-    start = time.time()
     inversed_grid = reduce_dim_model.inverse_transform(np.c_[xx.ravel(), yy.ravel()])
 
     
@@ -59,11 +54,11 @@ def plot_decision_boundary(model, reduce_dim_model, df_pca, y_train, tk_root, gr
 
 def train_model(X_train, y_train, n_epochs = 100, show_loss_while_training = False):
     model = Sequence(
-        Linear(4, 12),
+        Linear(30, 512),
         ReLU(),
-        Linear(12, 12),
+        Linear(512, 1028),
         ReLU(),
-        Linear(12, 3),
+        Linear(1028, 2),
         Softmax(),
     )
 
@@ -83,7 +78,7 @@ def train_model(X_train, y_train, n_epochs = 100, show_loss_while_training = Fal
     return wrapper 
 
 if __name__ == '__main__':
-    dataset = load_iris()
+    dataset = load_breast_cancer()
     X = dataset.data
     y = dataset.target
     _y = to_categorical(y.astype("int"))
@@ -162,7 +157,7 @@ if __name__ == '__main__':
             ax.contourf(xx, yy, predicts, alpha=0.7)
             ax.scatter(df_pca_train[:, 0], df_pca_train[:, 1], c = np.argmax(y_train, axis = 1), edgecolors='k')
             canvas.draw()
-            root.after(100, run_mil_epochs, i + 1)
+            root.after(1, run_mil_epochs, i + 1)
 
     next_epoch_button = ttk.Button(
         root,
