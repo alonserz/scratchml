@@ -1,4 +1,3 @@
-# import numpy as np
 import numpy as np
 import math
 import copy
@@ -23,6 +22,9 @@ class Linear():
         # forward pass
         self.in_x = x
         return x.dot(self.weights) + self.b
+
+    def __str__(self,):
+        return f"{self.__class__.__name__}(in_features={self.in_features}, out_features={self.out_features})"
 
     def optim_init(self, optim):
         self.W_opt = copy.copy(optim)
@@ -51,6 +53,9 @@ class Softmax():
         e_x = np.exp(x - np.max(x, axis=-1, keepdims=True))
         return e_x / np.sum(e_x, axis=-1, keepdims=True)
 
+    def __str__(self,):
+        return f"{self.__class__.__name__}()"
+
     def gradient(self, x):
         p = self.__call__(x)
         return p * (1 - p)
@@ -67,6 +72,9 @@ class ReLU():
         self.in_x = x
         return np.where(x >= 0, x, 0) 
 
+    def __str__(self,):
+        return f"{self.__class__.__name__}()"
+
     def gradient(self, x):
         return np.where(x >= 0, 1, 0)  
 
@@ -81,6 +89,9 @@ class Sigmoid():
         self.in_x = x
         return 1/(1 + np.exp(-x))
 
+    def __str__(self,):
+        return f"{self.__class__.__name__}()"
+    
     def gradient(self, x):
         return self.__call__(x) * (1 - self.__call__(x))
 
@@ -142,13 +153,15 @@ class Conv():
         self.W_opt = copy.copy(optim)
         self.b_opt = copy.copy(optim)
 
+    def __str__(self,):
+        return f"{self.__class__.__name__}(in_channels={self.in_channels}, out_channels={self.out_channels}, kernel_size={self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation})"
+
     def __call__(self, x):
         self.in_x = x
         x_shape = x.shape
         if len(x_shape) == 4:
             # (B, C, H, W)
             self.batch, _, x_height, x_width = x_shape
-            # raise NotImplementedError("Batch forward-pass is not implemented")
         elif len(x_shape) == 3:
             # (C, H, W)
             x = np.expand_dims(x, 0)
@@ -180,14 +193,14 @@ class Conv():
             for k in range(self.out_channels):
                 for h in range(int(self.out_height)):
                     for w in range(int(self.out_height)):
-                        _grad_weights[k] = grad[b, k, h, w] * self.in_x[b, :, h*self.stride[0]:h*self.stride[1]+self.kernel_size[0]:self.dilation[0],
+                        _grad_weights[k] += grad[b, k, h, w] * self.in_x[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0]:self.dilation[0],
                                                                               w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]:self.dilation[1]]
-                        _grad_bias = grad[b, k, h, w]
+                        _grad_bias += grad[b, k, h, w]
                         _grad_out[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0]:self.dilation[0],
                                         w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]:self.dilation[1]] = grad[b, k, h, w] * self.weights[k]
         
         self.weights = self.W_opt.update(self.weights, _grad_weights)
-        self.b = self.b_opt.update(self.bias, _grad_bias)
+        self.bias = self.b_opt.update(self.bias, _grad_bias)
 
         return _grad_out
 
@@ -195,7 +208,7 @@ class AvgPooling():
     def __init__(
             self,
             kernel_size,
-            stride = 1,
+            stride = None,
             padding = 0,
     ):
         # TODO: padding
@@ -205,10 +218,13 @@ class AvgPooling():
         else:
             self.kernel_size = kernel_size
 
-        if isinstance(stride, int):
-            self.stride = (stride, stride)
+        if stride is None:
+            self.stride = self.kernel_size
         else:
-            self.stride = stride
+            if isinstance(stride, int):
+                self.stride = (stride, stride)
+            else:
+                self.stride = stride
 
         if isinstance(padding, int):
             self.padding = (padding, padding)
@@ -220,6 +236,8 @@ class AvgPooling():
 
         self.weights = None
         
+    def __str__(self,):
+        return f"{self.__class__.__name__}(kernel_size={self.kernel_size}, stride={self.stride}, padding={self.padding})"
 
     def __call__(self, x):
         self.in_x = x
@@ -272,7 +290,29 @@ class Flatten():
         self.in_x = x
         return x.reshape((x.shape[0], -1))
 
+    def __str__(self,):
+        return f"{self.__class__.__name__}"
+
     def backward(self, grad):
         batch, channels, height, width = self.in_x.shape
         reshaped_grad = grad.reshape((batch, channels, height, width))
         return reshaped_grad
+
+class Dropout():
+    # https://docs.pytorch.org/docs/stable/generated/torch.nn.Dropout.html
+    def __init__(self, p = 0.5):
+        self.p = p
+        self.training = True
+        self.mask = None
+
+    def __call__(self, x):
+        if self.training:
+            self.mask = np.random.uniform(size = x.shape) > self.p
+            return (x * self.mask) / (1 - self.p)
+        return x
+
+    def __str__(self,):
+        return f"{self.__class__.__name__}(p={self.p})"
+
+    def backward(self, grad):
+        return (grad * self.mask) / (1 - self.p)
