@@ -11,7 +11,7 @@ from matplotlib.backends.backend_tkagg import (FigureCanvasTkAgg,
 
 from scratchml.optimizer import Adam, RMSProp, SGD
 from scratchml.utils import Sequence, to_categorical
-from scratchml.layers import Linear, ReLU, Softmax, Sigmoid
+from scratchml.layers import Linear, ReLU, Softmax, Sigmoid, Dropout
 from scratchml.loss import CrossEntropy
 from scratchml.utils import STDScaler
 import time 
@@ -54,11 +54,13 @@ def plot_decision_boundary(model, reduce_dim_model, df_pca, y_train, tk_root, gr
 
 def train_model(X_train, y_train, n_epochs = 100, show_loss_while_training = False):
     model = Sequence(
-        Linear(30, 512),
+        Linear(64, 512),
+        Dropout(p = 0.3),
         ReLU(),
         Linear(512, 1028),
+        Dropout(p = 0.3),
         ReLU(),
-        Linear(1028, 2),
+        Linear(1028, 10),
         Softmax(),
     )
 
@@ -66,6 +68,7 @@ def train_model(X_train, y_train, n_epochs = 100, show_loss_while_training = Fal
     loss = CrossEntropy()
 
     def wrapper():
+        model.train()
         y_pred = model(X_train)
         _loss = loss(y_train, y_pred)
         if show_loss_while_training:
@@ -78,12 +81,12 @@ def train_model(X_train, y_train, n_epochs = 100, show_loss_while_training = Fal
     return wrapper 
 
 if __name__ == '__main__':
-    dataset = load_breast_cancer()
+    dataset = load_digits()
     X = dataset.data
     y = dataset.target
     _y = to_categorical(y.astype("int"))
     epoch = 0
-    X_train, X_test, y_train, y_test = train_test_split(X, _y, test_size=0.4)
+    X_train, X_test, y_train, y_test = train_test_split(X, _y, test_size=0.2)
 
     scaler = STDScaler()
     X_train = scaler.fit_transform(X_train)
@@ -131,6 +134,7 @@ if __name__ == '__main__':
         global ax, epoch 
         epoch += 1
         model, loss = train_func()
+        model.eval()
         epoch_label.config(text = "Epoch: " + str(epoch))
         loss_label.config(text = "Loss: " + str(loss))
         predicts = model(inversed_grid)
@@ -147,6 +151,7 @@ if __name__ == '__main__':
         if i < 1_000_000: 
             epoch += 1
             model, loss = train_func()
+            model.eval()
             epoch_label.config(text = "Epoch: " + str(epoch))
             loss_label.config(text = "Loss: " + str(loss))
             predicts = model(inversed_grid)
@@ -157,7 +162,7 @@ if __name__ == '__main__':
             ax.contourf(xx, yy, predicts, alpha=0.7)
             ax.scatter(df_pca_train[:, 0], df_pca_train[:, 1], c = np.argmax(y_train, axis = 1), edgecolors='k')
             canvas.draw()
-            root.after(1, run_mil_epochs, i + 1)
+            root.after(100, run_mil_epochs, i + 1)
 
     next_epoch_button = ttk.Button(
         root,
