@@ -316,7 +316,7 @@ class Dropout():
     def backward(self, grad):
         return (grad * self.mask) / (1 - self.p)
 
-class BatchNorm():
+class BatchNorm2D():
     # https://medium.com/@ghoshanurag66/batch-normalization-math-and-implementation-fe06293f7443
     def __init__(self, n_features, eps = 1e-05, momentum = 0.1):
         self.n_features = n_features
@@ -380,10 +380,79 @@ class BatchNorm():
         self.gamma = self.gamma_opt.update(self.gamma, _grad_gamma)
         self.beta = self.beta_opt.update(self.beta, _grad_beta)
 
-        
         N = grad.shape[0]
 
         dxhat = (grad * self.gamma[None, :, None, None])
+        dmean = (1/N) * (np.sum(dxhat, axis = 0) * (-1)/np.sqrt(_var + self.eps))
+        dxij = dxhat / np.sqrt(_var + self.eps)
+
+        dvar = np.sum(dxhat * (self.in_x - _mean), axis = 0) * (-1) * np.power(_var + self.eps, -1.5) * (self.in_x - _mean) / N
+        
+        _grad_out = dxij + dmean + dvar
+
+        return _grad_out
+
+class BatchNorm1D():
+    # https://medium.com/@ghoshanurag66/batch-normalization-math-and-implementation-fe06293f7443
+    def __init__(self, n_features, eps = 1e-05, momentum = 0.1):
+        self.n_features = n_features
+        self.eps = eps 
+        self.momentum = momentum
+        # non-learnable
+        self.mov_mean = np.full((self.n_features), 0)
+        self.mov_var = np.full((self.n_features), 0)
+        # learnable
+        self.gamma = np.full((self.n_features), 1)
+        self.beta = np.full((self.n_features), 0)
+
+        self.training = True
+        self.in_x = None
+        self.cache = ()
+
+        self.gamma_opt = None
+        self.beta_opt = None
+
+    def __str__(self,):
+        return f"{self.__class__.__name__}(n_features={self.n_features}, eps={self.eps}, momentum={self.momentum})"
+        
+    def optim_init(self, optim):
+        self.gamma_opt = copy.copy(optim)
+        self.beta_opt = copy.copy(optim)
+
+    def __call__(self, x):
+        self.in_x = x
+        if self.training:
+            # calc per-feature variance and mean across mini-batch 
+            _mean = np.mean(x, axis = 0)
+            _var = np.var(x, axis = 0)
+
+            self.mov_mean = self.momentum * self.mov_mean + (1 - self.momentum) * _mean
+            self.mov_var = self.momentum * self.mov_var + (1 - self.momentum) * _var
+            
+        else:
+            _mean = self.mov_mean
+            _var = self.mov_var
+
+        # https://numpy.org/doc/stable/user/basics.indexing.html#dimensional-indexing-tools
+        x_hat = (x - _mean) / np.sqrt(_var + self.eps)
+        y = self.gamma * x_hat + self.beta
+
+        self.cache = (x_hat, _mean, _var)
+        return y
+
+    def backward(self, grad):
+        x_hat, _mean, _var = self.cache
+
+        # TODO: is this part with gamma and beta params update actually correct?
+        _grad_beta = np.sum(grad, axis = 0)
+        _grad_gamma = np.sum(grad * x_hat, axis = 0)
+
+        self.gamma = self.gamma_opt.update(self.gamma, _grad_gamma)
+        self.beta = self.beta_opt.update(self.beta, _grad_beta)
+
+        N = grad.shape[0]
+
+        dxhat = (grad * self.gamma)
         dmean = (1/N) * (np.sum(dxhat, axis = 0) * (-1)/np.sqrt(_var + self.eps))
         dxij = dxhat / np.sqrt(_var + self.eps)
 
