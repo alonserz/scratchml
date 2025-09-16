@@ -1,5 +1,5 @@
 import numpy as np
-from scratchml.layers import Conv, AvgPooling, ReLU, Flatten, Dropout
+from scratchml.layers import Conv, AvgPooling, ReLU, Flatten, Dropout, BatchNorm
 from sklearn.datasets import fetch_openml
 from sklearn.utils import check_random_state
 
@@ -33,13 +33,16 @@ X_test = scaler.transform(X_test)
 model = Sequence(
     Conv(1, 6, 5),
     AvgPooling(2, stride = 2),
+    BatchNorm(6),
     Dropout(p = 0.1),
     ReLU(),
     Conv(6, 16, 5),
     AvgPooling(2, stride = 2),
+    BatchNorm(16),
     Dropout(p = 0.1),
     ReLU(),
     Conv(16, 120, 4),
+    BatchNorm(120),
     Flatten(),
     Linear(120, 80),
     Dropout(p = 0.1),
@@ -48,7 +51,7 @@ model = Sequence(
     Softmax()
 )
 
-optim = Adam(model, lr = 1e-3)
+optim = Adam(model, lr = 3e-3)
 loss = CrossEntropy()
 
 def train(X, y, n_epochs = 200):
@@ -67,4 +70,4 @@ def train(X, y, n_epochs = 200):
     print("Test accuracy: ", accuracy_score(np.argmax(y_test, axis = 1), np.argmax(y_pred, axis = 1)))
 
     
-train(X, y, 20)
+train(X, y, 10)
