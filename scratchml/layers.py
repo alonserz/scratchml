@@ -110,8 +110,6 @@ class Conv():
             dilation = 1,
     ):
 
-        # TODO: padding
-        
         self.in_channels = in_channels
         self.out_channels = out_channels
 
@@ -148,6 +146,8 @@ class Conv():
         self.W_opt = None
         self.b_opt = None
 
+        self.padded_x = None
+
     def optim_init(self, optim):
         self.W_opt = copy.copy(optim)
         self.b_opt = copy.copy(optim)
@@ -157,15 +157,11 @@ class Conv():
 
     def __call__(self, x):
         self.in_x = x
-        x_shape = x.shape
-        if len(x_shape) == 4:
-            # (B, C, H, W)
-            self.batch, _, x_height, x_width = x_shape
-        elif len(x_shape) == 3:
+        if len(self.in_x.shape) == 3:
             # (C, H, W)
-            x = np.expand_dims(x, 0)
-            _, x_height, x_width = x_shape
-            self.batch = 1
+            self.in_x = np.expand_dims(self.in_x, 0)
+
+        self.batch, _, x_height, x_width = self.in_x.shape 
 
         if self.out_height is None:
             self.out_height = np.floor(((x_height + 2 * self.padding[0] - self.dilation[0] * (self.kernel_size[0] - 1) - 1) / self.stride[0]) + 1)
@@ -173,13 +169,14 @@ class Conv():
             self.out_width = np.floor(((x_width + 2 * self.padding[1] - self.dilation[1] * (self.kernel_size[1] - 1) - 1) / self.stride[1]) + 1)
         
         out = np.zeros((self.batch, self.out_channels, int(self.out_height), int(self.out_width)))
+        self.padded_x = np.pad(self.in_x, [(0, 0), (0, 0), self.padding, self.padding]) 
 
         for b in range(self.batch):
             for k in range(self.out_channels):
                 for h in range(int(self.out_height)):
                     for w in range(int(self.out_width)):
-                        out[b, k, h, w] = np.sum(self.in_x[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0]:self.dilation[0],
-                                                                 w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]:self.dilation[1]] * self.weights[k]) + self.bias[k]
+                        out[b, k, h, w] = np.sum(self.padded_x[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0]:self.dilation[0],
+                                                          w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]:self.dilation[1]] * self.weights[k]) + self.bias[k]
         return out 
 
 
@@ -188,16 +185,22 @@ class Conv():
         _grad_weights = np.zeros_like(self.weights)
         _grad_bias = np.zeros_like(self.bias)
 
+        _grad_out = np.pad(_grad_out, [(0, 0), (0,0), self.padding, self.padding])
+
         for b in range(self.batch):
             for k in range(self.out_channels):
                 for h in range(int(self.out_height)):
                     for w in range(int(self.out_height)):
-                        _grad_weights[k] += grad[b, k, h, w] * self.in_x[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0]:self.dilation[0],
+                        _grad_weights[k] += grad[b, k, h, w] * self.padded_x[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0]:self.dilation[0],
                                                                               w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]:self.dilation[1]]
                         _grad_bias += grad[b, k, h, w]
                         _grad_out[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0]:self.dilation[0],
                                         w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]:self.dilation[1]] = grad[b, k, h, w] * self.weights[k]
-        
+
+        if sum(self.padding) > 0:
+            _grad_out = _grad_out[:, :, self.padding[0]:-self.padding[1], self.padding[0]:-self.padding[1]]
+            # _grad_out[b, :, :, :] = _grad_out_pad[]
+            # print(f"{_grad_out_pad[b, :, self.padding[0]:-self.padding[1], self.padding[0]:-self.padding[1]]=}")
         self.weights = self.W_opt.update(self.weights, _grad_weights)
         self.bias = self.b_opt.update(self.bias, _grad_bias)
 
@@ -211,7 +214,6 @@ class AvgPooling():
             padding = 0,
     ):
         # TODO: padding
-        # TODO: stride
         if isinstance(kernel_size, int):
             self.kernel_size = (kernel_size, kernel_size)
         else:
@@ -240,15 +242,10 @@ class AvgPooling():
 
     def __call__(self, x):
         self.in_x = x
-        x_shape = x.shape
-        if len(x_shape) == 4:
-            # (B, C, H, W)
-            self.batch, self.channels, x_height, x_width = x_shape
-        elif len(x_shape) == 3:
+        if len(self.in_x.shape) == 3:
             # (C, H, W)
-            x = np.expand_dims(x, 0)
-            self.channels, x_height, x_width = x_shape
-            self.batch = 1
+            self.in_x = np.expand_dims(self.in_x, 0)
+        self.batch, self.channels, x_height, x_width = self.in_x.shape 
 
         if self.weights is None:
             self.weights  = np.full((self.channels, self.channels, self.kernel_size[0], self.kernel_size[1]), 1/(self.kernel_size[0] * self.kernel_size[1]))
@@ -258,12 +255,13 @@ class AvgPooling():
             self.out_width = np.floor((x_width + 2 * self.padding[1] -  self.kernel_size[1]) / self.stride[1] + 1)
         
         out = np.zeros((self.batch, self.channels, int(self.out_height), int(self.out_width)))
+        padded_x = np.pad(self.in_x, [(0, 0), (0, 0), self.padding, self.padding]) 
 
         for b in range(self.batch):
             for k in range(self.channels):
                 for h in range(int(self.out_height)):
                     for w in range(int(self.out_width)):
-                        out[b, k, h, w] = np.sum(self.in_x[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0],
+                        out[b, k, h, w] = np.sum(padded_x[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0],
                                                                  w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]] * self.weights[k])
         return out 
 
