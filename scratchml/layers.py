@@ -213,7 +213,6 @@ class AvgPooling():
             stride = None,
             padding = 0,
     ):
-        # TODO: padding
         if isinstance(kernel_size, int):
             self.kernel_size = (kernel_size, kernel_size)
         else:
@@ -255,19 +254,20 @@ class AvgPooling():
             self.out_width = np.floor((x_width + 2 * self.padding[1] -  self.kernel_size[1]) / self.stride[1] + 1)
         
         out = np.zeros((self.batch, self.channels, int(self.out_height), int(self.out_width)))
-        padded_x = np.pad(self.in_x, [(0, 0), (0, 0), self.padding, self.padding]) 
+        self.padded_x = np.pad(self.in_x, [(0, 0), (0, 0), self.padding, self.padding]) 
 
         for b in range(self.batch):
             for k in range(self.channels):
                 for h in range(int(self.out_height)):
                     for w in range(int(self.out_width)):
-                        out[b, k, h, w] = np.sum(padded_x[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0],
+                        out[b, k, h, w] = np.sum(self.padded_x[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0],
                                                                  w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]] * self.weights[k])
         return out 
 
 
     def backward(self, grad):
         _grad_out = np.zeros_like(self.in_x)
+        _grad_out = np.pad(_grad_out, [(0, 0), (0,0), self.padding, self.padding])
 
         for b in range(self.batch):
             for k in range(self.channels):
@@ -275,6 +275,8 @@ class AvgPooling():
                     for w in range(int(self.out_width)):
                         _grad_out[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0],
                                         w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]] = grad[b, k, h, w] * self.weights[k]
+        if sum(self.padding) > 0:
+            _grad_out = _grad_out[:, :, self.padding[0]:-self.padding[1], self.padding[0]:-self.padding[1]]
         
         return _grad_out
 
