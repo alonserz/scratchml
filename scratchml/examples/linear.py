@@ -7,7 +7,7 @@ from sklearn.model_selection import train_test_split
 
 from scratchml.optimizer import Adam, RMSProp, SGD
 from scratchml.utils import Sequence, to_categorical
-from scratchml.layers import Linear, ReLU, Softmax, Dropout
+from scratchml.layers import Linear, ReLU, Softmax, Dropout, BatchNorm1D
 from scratchml.loss import CrossEntropy
 from scratchml.utils import STDScaler
 from sklearn.metrics import accuracy_score
@@ -25,9 +25,11 @@ X_train = scaler.fit_transform(X_train)
 
 model = Sequence(
     Linear(64, 12),
+    BatchNorm1D(12),
     Dropout(p = 0.2),
     ReLU(),
     Linear(12, 12),
+    BatchNorm1D(12),
     Dropout(p = 0.2),
     ReLU(),
     Linear(12, 10),
