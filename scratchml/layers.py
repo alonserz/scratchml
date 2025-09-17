@@ -15,8 +15,11 @@ class Linear():
 
         self.b = np.zeros((1, self.out_features))
         
-        limit = 1 / math.sqrt(self.in_features)
-        self.weights  = np.random.uniform(-limit, limit, (self.in_features, self.out_features))
+        self.__limit = 1 / math.sqrt(self.in_features)
+        self.weights  = np.random.uniform(-self.__limit, self.__limit, (self.in_features, self.out_features))
+
+        self.__args = locals()
+        self.__args.pop('self')
 
     def __call__(self, x):
         # forward pass
@@ -24,29 +27,29 @@ class Linear():
         return x.dot(self.weights) + self.b
 
     def __str__(self,):
-        return f"{self.__class__.__name__}(in_features={self.in_features}, out_features={self.out_features})"
+        args = [f"{key}={value}" for key, value in self.__args.items()]
+        return f"{self.__class__.__name__}({', '.join(args)})"
 
     def optim_init(self, optim):
         self.W_opt = copy.copy(optim)
         self.b_opt = copy.copy(optim)
 
     def backward(self, grad):
-        W = self.weights
-
+        _grad_out = grad.dot(self.weights.T)
         _grad = self.in_x.T.dot(grad)
         grad_b = np.sum(grad, axis=0, keepdims=True)
 
         self.weights = self.W_opt.update(self.weights, _grad)
         self.b = self.b_opt.update(self.b, grad_b)
 
-
-        _grad_out = grad.dot(W.T)
         return _grad_out
 
 
 class Softmax():
     def __init__(self,):
         self._in_x = None
+        self.__args = locals()
+        self.__args.pop('self')
 
     def __call__(self, x):
         self.in_x = x
@@ -54,7 +57,8 @@ class Softmax():
         return e_x / np.sum(e_x, axis=-1, keepdims=True)
 
     def __str__(self,):
-        return f"{self.__class__.__name__}()"
+        args = [f"{key}={value}" for key, value in self.__args.items()]
+        return f"{self.__class__.__name__}({', '.join(args)})"
 
     def gradient(self, x):
         p = self.__call__(x)
@@ -66,6 +70,8 @@ class Softmax():
 class ReLU():
     def __init__(self,):
         self.in_x = None
+        self.__args = locals()
+        self.__args.pop('self')
 
     def __call__(self, x):
         # forward pass
@@ -73,7 +79,8 @@ class ReLU():
         return np.where(x >= 0, x, 0) 
 
     def __str__(self,):
-        return f"{self.__class__.__name__}()"
+        args = [f"{key}={value}" for key, value in self.__args.items()]
+        return f"{self.__class__.__name__}({', '.join(args)})"
 
     def gradient(self, x):
         return np.where(x >= 0, 1, 0)  
@@ -84,13 +91,16 @@ class ReLU():
 class Sigmoid():
     def __init__(self,):
         self.in_x = None
+        self.__args = locals()
+        self.__args.pop('self')
 
     def __call__(self, x):
         self.in_x = x
         return 1/(1 + np.exp(-x))
 
     def __str__(self,):
-        return f"{self.__class__.__name__}()"
+        args = [f"{key}={value}" for key, value in self.__args.items()]
+        return f"{self.__class__.__name__}({', '.join(args)})"
     
     def gradient(self, x):
         return self.__call__(x) * (1 - self.__call__(x))
@@ -108,52 +118,53 @@ class Conv():
             stride = 1,
             padding = 0,
             dilation = 1,
+            padding_mode = 'constant',
     ):
-
+        # TODO: padding modes (reflect, etc.)
         self.in_channels = in_channels
         self.out_channels = out_channels
 
         if isinstance(kernel_size, int):
-            self.kernel_size = (kernel_size, kernel_size)
-        else:
-            self.kernel_size = kernel_size
+            kernel_size = (kernel_size, kernel_size)
 
         if isinstance(stride, int):
-            self.stride = (stride, stride)
-        else:
-            self.stride = stride
+            stride = (stride, stride)
 
         if isinstance(padding, int):
-            self.padding = (padding, padding)
-        else:
-            self.padding = padding
+            padding = (padding, padding)
 
         if isinstance(dilation, int):
-            self.dilation = (dilation, dilation)
-        else:
-            self.dilation = dilation   
+            dilation = (dilation, dilation)
 
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.dilation = dilation
+        self.padding_mode = padding_mode
         self.out_height = None
         self.out_width = None
         self.in_x = None
         
         # weights init according to https://docs.pytorch.org/docs/stable/generated/torch.nn.Conv2d.html
-        k = 1/(self.in_channels * self.kernel_size[0] * self.kernel_size[1])
-        k_sqrt = np.sqrt(k)
+        k_sqrt = np.sqrt(1/(self.in_channels * self.kernel_size[0] * self.kernel_size[1]))
         self.weights  = np.random.uniform(-k_sqrt, k_sqrt, (self.out_channels, self.in_channels, self.kernel_size[0], self.kernel_size[1]))
         self.bias = np.random.uniform(-k_sqrt, k_sqrt, (out_channels))
 
         self.W_opt = None
         self.b_opt = None
-
         self.padded_x = None
+
+        self.__args = locals()
+        self.__args.pop('self')
+        self.__args.pop('k_sqrt')
 
     def optim_init(self, optim):
         self.W_opt = copy.copy(optim)
         self.b_opt = copy.copy(optim)
 
     def __str__(self,):
-        return f"{self.__class__.__name__}(in_channels={self.in_channels}, out_channels={self.out_channels}, kernel_size={self.kernel_size}, stride={self.stride}, padding={self.padding}, dilation={self.dilation})"
+        args = [f"{key}={value}" for key, value in self.__args.items()]
+        return f"{self.__class__.__name__}({', '.join(args)})"
 
     def __call__(self, x):
         self.in_x = x
@@ -169,7 +180,7 @@ class Conv():
             self.out_width = np.floor(((x_width + 2 * self.padding[1] - self.dilation[1] * (self.kernel_size[1] - 1) - 1) / self.stride[1]) + 1)
         
         out = np.zeros((self.batch, self.out_channels, int(self.out_height), int(self.out_width)))
-        self.padded_x = np.pad(self.in_x, [(0, 0), (0, 0), self.padding, self.padding]) 
+        self.padded_x = np.pad(self.in_x, [(0, 0), (0, 0), self.padding, self.padding], mode = self.padding_mode) 
 
         for b in range(self.batch):
             for k in range(self.out_channels):
@@ -185,7 +196,7 @@ class Conv():
         _grad_weights = np.zeros_like(self.weights)
         _grad_bias = np.zeros_like(self.bias)
 
-        _grad_out = np.pad(_grad_out, [(0, 0), (0,0), self.padding, self.padding])
+        _grad_out = np.pad(_grad_out, [(0, 0), (0,0), self.padding, self.padding], mode = self.padding_mode)
 
         for b in range(self.batch):
             for k in range(self.out_channels):
@@ -212,32 +223,31 @@ class AvgPooling():
             kernel_size,
             stride = None,
             padding = 0,
+            padding_mode = 'constant',
     ):
+        # TODO: padding modes (reflect, etc.)
         if isinstance(kernel_size, int):
-            self.kernel_size = (kernel_size, kernel_size)
-        else:
-            self.kernel_size = kernel_size
+            kernel_size = (kernel_size, kernel_size)
 
         if stride is None:
-            self.stride = self.kernel_size
-        else:
-            if isinstance(stride, int):
-                self.stride = (stride, stride)
-            else:
-                self.stride = stride
+            stride = kernel_size
 
         if isinstance(padding, int):
-            self.padding = (padding, padding)
-        else:
-            self.padding = padding
+            padding = (padding, padding)
 
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.padding_mode = padding_mode
         self.out_height = None
         self.out_width = None
-
         self.weights = None
+        self.__args = locals()
+        self.__args.pop('self')
         
     def __str__(self,):
-        return f"{self.__class__.__name__}(kernel_size={self.kernel_size}, stride={self.stride}, padding={self.padding})"
+        args = [f"{key}={value}" for key, value in self.__args.items()]
+        return f"{self.__class__.__name__}({', '.join(args)})"
 
     def __call__(self, x):
         self.in_x = x
@@ -254,7 +264,7 @@ class AvgPooling():
             self.out_width = np.floor((x_width + 2 * self.padding[1] -  self.kernel_size[1]) / self.stride[1] + 1)
         
         out = np.zeros((self.batch, self.channels, int(self.out_height), int(self.out_width)))
-        self.padded_x = np.pad(self.in_x, [(0, 0), (0, 0), self.padding, self.padding]) 
+        self.padded_x = np.pad(self.in_x, [(0, 0), (0, 0), self.padding, self.padding], mode = self.padding_mode) 
 
         for b in range(self.batch):
             for k in range(self.channels):
@@ -267,7 +277,7 @@ class AvgPooling():
 
     def backward(self, grad):
         _grad_out = np.zeros_like(self.in_x)
-        _grad_out = np.pad(_grad_out, [(0, 0), (0,0), self.padding, self.padding])
+        _grad_out = np.pad(_grad_out, [(0, 0), (0,0), self.padding, self.padding], mode = self.padding_mode)
 
         for b in range(self.batch):
             for k in range(self.channels):
@@ -284,17 +294,19 @@ class AvgPooling():
 class Flatten():
     def __init__(self,):
         self.in_x = None
+        self.__args = locals()
+        self.__args.pop('self')
 
     def __call__(self, x):
         self.in_x = x
         return x.reshape((x.shape[0], -1))
 
     def __str__(self,):
-        return f"{self.__class__.__name__}()"
+        args = [f"{key}={value}" for key, value in self.__args.items()]
+        return f"{self.__class__.__name__}({', '.join(args)})"
 
     def backward(self, grad):
-        batch, channels, height, width = self.in_x.shape
-        reshaped_grad = grad.reshape((batch, channels, height, width))
+        reshaped_grad = grad.reshape(self.in_x.shape)
         return reshaped_grad
 
 class Dropout():
@@ -304,8 +316,12 @@ class Dropout():
         self.training = True
         self.mask = None
 
+        self.__args = locals()
+        self.__args.pop('self')
+
     def __str__(self,):
-        return f"{self.__class__.__name__}(p={self.p})"
+        args = [f"{key}={value}" for key, value in self.__args.items()]
+        return f"{self.__class__.__name__}({', '.join(args)})"
 
     def __call__(self, x):
         if self.training:
@@ -335,9 +351,12 @@ class BatchNorm2D():
 
         self.gamma_opt = None
         self.beta_opt = None
+        self.__args = locals()
+        self.__args.pop('self')
 
     def __str__(self,):
-        return f"{self.__class__.__name__}(n_features={self.n_features}, eps={self.eps}, momentum={self.momentum})"
+        args = [f"{key}={value}" for key, value in self.__args.items()]
+        return f"{self.__class__.__name__}({', '.join(args)})"
         
     def optim_init(self, optim):
         self.gamma_opt = copy.copy(optim)
@@ -350,10 +369,8 @@ class BatchNorm2D():
             _mean = np.mean(x, axis = (0, 2, 3))
             _var = np.var(x, axis = (0, 2, 3))
 
-
             self.mov_mean = self.momentum * self.mov_mean + (1 - self.momentum) * _mean
             self.mov_var = self.momentum * self.mov_var + (1 - self.momentum) * _var
-            
         else:
             _mean = self.mov_mean
             _var = self.mov_var
@@ -371,11 +388,8 @@ class BatchNorm2D():
         x_hat, _mean, _var = self.cache
 
         # TODO: is this part with gamma and beta params update actually correct?
-        _grad_beta = np.sum(grad, axis = 0)
-        _grad_gamma = np.sum(grad * x_hat, axis = 0)
-
-        _grad_beta = np.sum(_grad_beta, axis = (1, 2))
-        _grad_gamma = np.sum(_grad_gamma, axis = (1, 2))
+        _grad_beta = np.sum(grad, axis = (0, 2, 3))
+        _grad_gamma = np.sum(grad * x_hat, axis = (0, 2, 3))
 
         self.gamma = self.gamma_opt.update(self.gamma, _grad_gamma)
         self.beta = self.beta_opt.update(self.beta, _grad_beta)
@@ -385,7 +399,6 @@ class BatchNorm2D():
         dxhat = (grad * self.gamma[None, :, None, None])
         dmean = (1/N) * (np.sum(dxhat, axis = 0) * (-1)/np.sqrt(_var + self.eps))
         dxij = dxhat / np.sqrt(_var + self.eps)
-
         dvar = np.sum(dxhat * (self.in_x - _mean), axis = 0) * (-1) * np.power(_var + self.eps, -1.5) * (self.in_x - _mean) / N
         
         _grad_out = dxij + dmean + dvar
@@ -411,9 +424,12 @@ class BatchNorm1D():
 
         self.gamma_opt = None
         self.beta_opt = None
+        self.__args = locals()
+        self.__args.pop('self')
 
     def __str__(self,):
-        return f"{self.__class__.__name__}(n_features={self.n_features}, eps={self.eps}, momentum={self.momentum})"
+        args = [f"{key}={value}" for key, value in self.__args.items()]
+        return f"{self.__class__.__name__}({', '.join(args)})"
         
     def optim_init(self, optim):
         self.gamma_opt = copy.copy(optim)
@@ -428,7 +444,6 @@ class BatchNorm1D():
 
             self.mov_mean = self.momentum * self.mov_mean + (1 - self.momentum) * _mean
             self.mov_var = self.momentum * self.mov_var + (1 - self.momentum) * _var
-            
         else:
             _mean = self.mov_mean
             _var = self.mov_var
@@ -443,7 +458,6 @@ class BatchNorm1D():
     def backward(self, grad):
         x_hat, _mean, _var = self.cache
 
-        # TODO: is this part with gamma and beta params update actually correct?
         _grad_beta = np.sum(grad, axis = 0)
         _grad_gamma = np.sum(grad * x_hat, axis = 0)
 
@@ -455,7 +469,6 @@ class BatchNorm1D():
         dxhat = (grad * self.gamma)
         dmean = (1/N) * (np.sum(dxhat, axis = 0) * (-1)/np.sqrt(_var + self.eps))
         dxij = dxhat / np.sqrt(_var + self.eps)
-
         dvar = np.sum(dxhat * (self.in_x - _mean), axis = 0) * (-1) * np.power(_var + self.eps, -1.5) * (self.in_x - _mean) / N
         
         _grad_out = dxij + dmean + dvar
