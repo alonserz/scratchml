@@ -291,6 +291,87 @@ class AvgPooling():
         return _grad_out
 
 
+class MaxPooling():
+    def __init__(
+            self,
+            kernel_size,
+            stride = None,
+            padding = 0,
+            dilation = 1,
+            padding_mode = 'constant',
+    ):
+        # TODO: padding modes (reflect, etc.)
+        if isinstance(kernel_size, int):
+            kernel_size = (kernel_size, kernel_size)
+
+        if stride is None:
+            stride = kernel_size
+
+        if isinstance(padding, int):
+            padding = (padding, padding)
+
+        if isinstance(dilation, int):
+            dilation = (dilation, dilation)
+
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.padding_mode = padding_mode
+        self.dilation = dilation
+        self.out_height = None
+        self.out_width = None
+        self.__args = locals()
+        self.__args.pop('self')
+        
+    def __str__(self,):
+        args = [f"{key}={value}" for key, value in self.__args.items()]
+        return f"{self.__class__.__name__}({', '.join(args)})"
+
+    def __call__(self, x):
+        self.in_x = x
+        if len(self.in_x.shape) == 3:
+            # (C, H, W)
+            self.in_x = np.expand_dims(self.in_x, 0)
+        self.batch, self.channels, x_height, x_width = self.in_x.shape 
+
+        if self.out_height is None:
+            self.out_height = np.floor((x_height + 2 * self.padding[0] - self.dilation[0] * (self.kernel_size[0] - 1) - 1)/ self.stride[0] + 1)
+        if self.out_width is None:
+            self.out_width = np.floor((x_height + 2 * self.padding[1] - self.dilation[1] * (self.kernel_size[1] - 1) - 1)/ self.stride[1] + 1)
+        
+        out = np.zeros((self.batch, self.channels, int(self.out_height), int(self.out_width)))
+        self.padded_x = np.pad(self.in_x, [(0, 0), (0, 0), self.padding, self.padding], mode = self.padding_mode) 
+
+        for b in range(self.batch):
+            for k in range(self.channels):
+                for h in range(int(self.out_height)):
+                    for w in range(int(self.out_width)):
+                        out[b, k, h, w] = np.max(self.padded_x[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0]:self.dilation[0],
+                                                                 w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]:self.dilation[1]])
+        return out 
+
+
+    def backward(self, grad):
+        _grad_out = np.zeros_like(self.in_x)
+        _grad_out = np.pad(_grad_out, [(0, 0), (0,0), self.padding, self.padding], mode = self.padding_mode)
+
+        for b in range(self.batch):
+            for k in range(self.channels):
+                for h in range(int(self.out_height)):
+                    for w in range(int(self.out_width)):
+                        _ = self.padded_x[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0]:self.dilation[0],
+                                                                 w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]:self.dilation[1]]
+                        mask = (_ == np.max(_))
+                        _grad_out[b, :, h*self.stride[0]:h*self.stride[0]+self.kernel_size[0]:self.dilation[0],
+                                        w*self.stride[1]:w*self.stride[1]+self.kernel_size[1]:self.dilation[1]] = grad[b, k, h, w] * mask
+
+        if sum(self.padding) > 0:
+            _grad_out = _grad_out[:, :, self.padding[0]:-self.padding[1], self.padding[0]:-self.padding[1]]
+        
+        return _grad_out
+
+
+
 class Flatten():
     def __init__(self,):
         self.in_x = None
