@@ -52,3 +52,40 @@ class STDScaler():
     def fit_transform(self, x):
         _ = self.fit(x)
         return self.transform(x)
+
+def split_batch_train_test(
+        X,
+        y,
+        batch_size = 1,
+        test_size = 0.3,
+        drop_last = True,
+        shuffle = True,
+):
+    assert batch_size > 0, "Batch Size can't be less than 0"
+    assert test_size >= 0 and test_size <= 1, "Value of test size must be in range [0, 1]"
+
+    # Reshape dataset to batches with dropping last elements
+    drop_last_size = X.shape[0] - (X.shape[0] % batch_size)
+    X = X[:drop_last_size]
+    y = y[:drop_last_size]
+
+    X = X.reshape(X.shape[0] // batch_size, batch_size, *X.shape[1:])
+    y = y.reshape(y.shape[0] // batch_size, batch_size, *y.shape[1:])
+
+    # shuffle
+    if shuffle:
+        perm = np.random.permutation(X.shape[0])
+        X = X[perm]
+        y = y[perm]
+
+
+    train_size = int((1 - test_size) * X.shape[0])
+    X_train = X[:train_size]
+    y_train = y[:train_size]
+    assert X_train.shape[0] == y_train.shape[0]
+    X_test = X[train_size:]
+    y_test = y[train_size:]
+    assert X_test.shape[0] == y_test.shape[0]
+
+
+    return X_train, X_test, y_train, y_test
